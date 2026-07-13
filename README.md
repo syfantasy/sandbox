@@ -11,6 +11,7 @@
 - 自动安装 Node.js 包
 - 支持通过 URL 下载消息图片，避免占用 Vercel 请求体额度
 - 收集 `outputs/` 中的图片并通过 Base64 返回给 Chaite 工具
+- 自动将 `/tmp/inputs`、`/tmp/outputs` 映射到当前会话，兼容模型习惯性的 `cd /tmp`
 - 超时后终止整个进程组
 - 限制并发、命令输出和返回文件体积
 - 进程以 UID 1000 运行，不是 root
@@ -34,6 +35,7 @@ Hobby 计划的重要限制：
 MAX_OUTPUT_BYTES=131072
 MAX_FILE_OUTPUT_BYTES=2400000
 MAX_OUTPUT_FILES=4
+MAX_CONCURRENT_JOBS=1
 MAX_TIMEOUT_SECONDS=300
 ```
 
@@ -105,6 +107,15 @@ SANDBOX_INPUT_IMAGES
 ```js
 await e.reply(segment.image(Buffer.from(file.content_base64, 'base64')))
 ```
+
+工具执行命令前会创建以下映射：
+
+```text
+/tmp/inputs  -> 当前会话/inputs
+/tmp/outputs -> 当前会话/outputs
+```
+
+因此模型即使先执行 `cd /tmp`，再保存 `outputs/result.jpg`，服务端也能正常收集并发送图片。Vercel 单实例并发设为 1，避免不同任务同时修改这两个兼容映射。
 
 ## API 调用
 
