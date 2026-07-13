@@ -1,0 +1,12 @@
+.git
+.gitignore
+.env
+.venv
+__pycache__
+.pytest_cache
+*.pyc
+tests
+examples
+chaite工具
+工具示例
+.env.vercel.local
