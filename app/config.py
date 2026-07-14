@@ -28,6 +28,7 @@ class Settings:
     max_output_bytes: int
     max_input_bytes: int
     max_file_output_bytes: int
+    max_stream_file_output_bytes: int
     max_output_files: int
     max_concurrent_jobs: int
 
@@ -55,6 +56,9 @@ class Settings:
             max_input_bytes=_read_int("MAX_INPUT_BYTES", 20_000_000, 1024),
             max_file_output_bytes=_read_int(
                 "MAX_FILE_OUTPUT_BYTES", 20_000_000, 1024
+            ),
+            max_stream_file_output_bytes=_read_int(
+                "MAX_STREAM_FILE_OUTPUT_BYTES", 64_000_000, 1024
             ),
             max_output_files=_read_int("MAX_OUTPUT_FILES", 8),
             max_concurrent_jobs=_read_int("MAX_CONCURRENT_JOBS", 2),

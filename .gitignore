@@ -9,7 +9,7 @@ __pycache__/
 .DS_Store
 
 # Local robot integration files contain the configured bearer token.
-chaite工具/PrivateSandbox.js
+chaite工具/
 
 # User-provided reference tools are not part of the deployable sandbox.
 工具示例/

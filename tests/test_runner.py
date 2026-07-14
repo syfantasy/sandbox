@@ -15,6 +15,8 @@ from app.runner import SandboxRunner
 def make_runner(
     tmp_path: Path,
     output_limit: int = 100_000,
+    file_output_limit: int = 100_000,
+    stream_file_output_limit: int = 500_000,
     http_transport: httpx.AsyncBaseTransport | None = None,
 ) -> SandboxRunner:
     return SandboxRunner(
@@ -26,7 +28,8 @@ def make_runner(
             default_timeout_seconds=2,
             max_output_bytes=output_limit,
             max_input_bytes=100_000,
-            max_file_output_bytes=100_000,
+            max_file_output_bytes=file_output_limit,
+            max_stream_file_output_bytes=stream_file_output_limit,
             max_output_files=4,
             max_concurrent_jobs=1,
         ),
@@ -127,3 +130,30 @@ class RunnerTests(unittest.IsolatedAsyncioTestCase):
 
             self.assertEqual(result.exit_code, 0)
             self.assertEqual(result.stdout, "downloaded-image")
+
+    async def test_stream_limit_can_return_media_larger_than_inline_limit(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            runner = make_runner(
+                Path(directory),
+                file_output_limit=1_000,
+                stream_file_output_limit=100_000,
+            )
+            request = ExecRequest(
+                command=(
+                    "mkdir -p outputs && "
+                    "python3 -c 'open(\"outputs/sample.mp3\", \"wb\").write(b\"x\" * 5000)'"
+                ),
+                output_files=["outputs/*"],
+            )
+
+            inline_result = await runner.execute(request)
+            stream_result = await runner.execute(
+                request,
+                max_file_output_bytes=runner.settings.max_stream_file_output_bytes,
+            )
+
+            self.assertEqual(inline_result.files, [])
+            self.assertTrue(inline_result.files_truncated)
+            self.assertEqual(len(stream_result.files), 1)
+            self.assertEqual(stream_result.files[0].mime_type, "audio/mpeg")
+            self.assertEqual(stream_result.files[0].size, 5_000)

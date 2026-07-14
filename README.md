@@ -9,8 +9,9 @@
 - 使用单个 Bearer Token 鉴权
 - 使用 `uv` 自动创建会话级 Python 环境
 - 自动安装 Node.js 包
-- 支持通过 URL 下载消息图片，避免占用 Vercel 请求体额度
-- 收集 `outputs/` 中的图片并通过 Base64 返回给 Chaite 工具
+- 支持通过 URL 下载消息图片、音频和视频，避免占用 Vercel 请求体额度
+- 普通 `/v1/exec` 接口继续以内联 Base64 返回小文件
+- `/v1/exec-stream` 以 NDJSON 分块返回较大的图片、音频和视频，机器人端边接收边落盘
 - 自动将 `/tmp/inputs`、`/tmp/outputs` 映射到当前会话，兼容模型习惯性的 `cd /tmp`
 - 超时后终止整个进程组
 - 限制并发、命令输出和返回文件体积
@@ -34,12 +35,15 @@ Hobby 计划的重要限制：
 ```text
 MAX_OUTPUT_BYTES=131072
 MAX_FILE_OUTPUT_BYTES=2400000
+MAX_STREAM_FILE_OUTPUT_BYTES=64000000
 MAX_OUTPUT_FILES=4
 MAX_CONCURRENT_JOBS=1
 MAX_TIMEOUT_SECONDS=300
 ```
 
-输出图片建议保存为 JPEG/WebP，并把全部返回文件控制在 2.4 MB 内。
+普通 `/v1/exec` 的全部返回文件应控制在 2.4 MB 内。配套 Chaite 工具使用
+`/v1/exec-stream`，默认可流式返回合计 64 MB 的输出媒体；该上限可通过
+`MAX_STREAM_FILE_OUTPUT_BYTES` 调整。
 
 ## 部署到 Vercel
 
@@ -82,30 +86,38 @@ MAX_TIMEOUT_SECONDS=300
 chaite工具/PrivateSandbox.js
 ```
 
-它会按照 `geminidraw.js` 的方式从以下位置提取图片：
+新版工具会从当前消息和引用消息中提取图片、视频和音频。图片仍兼容
+`geminidraw.js` 的引用解析方式：
 
 1. 当前消息图片
 2. `e.img`
 3. 引用或回复消息
 4. 没有图片时，被 @ 用户的头像
 
-工具只把图片 URL 发给沙盒。沙盒下载图片到：
+工具把远程媒体 URL 发给沙盒。沙盒分别下载到：
 
 ```text
 inputs/reference_1.img
 inputs/reference_2.img
+inputs/media_1.mp4
+inputs/media_2.mp3
 ```
 
 路径列表同时存在环境变量：
 
 ```text
 SANDBOX_INPUT_IMAGES
+SANDBOX_INPUT_MEDIA
+SANDBOX_INPUT_FILES
 ```
 
-命令应把结果保存到 `outputs/`。工具收到结果后会执行：
+命令应把结果保存到 `outputs/`，并使用正确扩展名，便于服务端识别 MIME 类型。
+新版工具通过流式接口把媒体写入机器人本机临时文件，然后执行：
 
 ```js
-await e.reply(segment.image(Buffer.from(file.content_base64, 'base64')))
+await e.reply(segment.image(localPath))
+await e.reply(segment.video(localPath))
+await e.reply(segment.record(localPath))
 ```
 
 工具执行命令前会创建以下映射：
@@ -115,7 +127,10 @@ await e.reply(segment.image(Buffer.from(file.content_base64, 'base64')))
 /tmp/outputs -> 当前会话/outputs
 ```
 
-因此模型即使先执行 `cd /tmp`，再保存 `outputs/result.jpg`，服务端也能正常收集并发送图片。Vercel 单实例并发设为 1，避免不同任务同时修改这两个兼容映射。
+因此模型即使先执行 `cd /tmp`，再保存 `outputs/result.mp4`，服务端也能正常收集并发送媒体。Vercel 单实例并发设为 1，避免不同任务同时修改这两个兼容映射。
+
+建议输出格式：图片使用 JPEG/WebP，音频使用 MP3，视频使用 H.264/AAC MP4。
+`Dockerfile.vercel` 已预装 FFmpeg，可直接进行转码。
 
 ## API 调用
 
@@ -150,6 +165,19 @@ URL 输入不会占用请求体的大量空间：
 ```
 
 仍然支持 `input_files[].content_base64`，但不建议在 Vercel 上用它传大图片。
+
+### 流式返回音频/视频
+
+`POST /v1/exec-stream` 接收与 `/v1/exec` 相同的请求体，响应类型为
+`application/x-ndjson`：
+
+1. `result` 事件包含执行结果和输出文件元数据，不包含文件 Base64
+2. `file_chunk` 事件按文件索引分块传输 Base64 内容
+3. `end` 事件表示所有文件传输完成
+
+配套的 `sandbox-新.js` 会持续读取这些事件，把媒体写入临时文件，再通过
+`segment.image`、`segment.video` 或 `segment.record` 回复用户。整个媒体传输发生在
+同一次 Vercel 请求内，不依赖后续请求命中同一个临时容器实例。
 
 ### 动态 Python 依赖
 
@@ -193,6 +221,7 @@ node --check 'chaite工具/PrivateSandbox.js'
 - `GET /healthz`：健康状态
 - `GET /docs`：FastAPI 接口文档
 - `POST /v1/exec`：执行命令，需要 Bearer Token
+- `POST /v1/exec-stream`：执行命令并分块返回较大的输出文件，需要 Bearer Token
 - `DELETE /v1/sessions/{session_id}`：清理当前实例中的会话目录
 
 ## 运行边界

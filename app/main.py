@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import json
+from collections.abc import Iterator
 from typing import Annotated
 
 from fastapi import Depends, FastAPI, Path
+from fastapi.responses import StreamingResponse
 
 from .auth import make_token_dependency
 from .config import Settings
@@ -39,6 +42,7 @@ async def healthz() -> HealthResponse:
         max_output_bytes=settings.max_output_bytes,
         max_input_bytes=settings.max_input_bytes,
         max_file_output_bytes=settings.max_file_output_bytes,
+        max_stream_file_output_bytes=settings.max_stream_file_output_bytes,
         max_output_files=settings.max_output_files,
     )
 
@@ -50,6 +54,60 @@ async def healthz() -> HealthResponse:
 )
 async def execute(request: ExecRequest) -> ExecResponse:
     return await runner.execute(request)
+
+
+_STREAM_CHUNK_CHARACTERS = 262_144
+
+
+def iter_exec_stream(response: ExecResponse) -> Iterator[bytes]:
+    result = response.model_dump(
+        exclude={"files": {"__all__": {"content_base64"}}}
+    )
+    yield (
+        json.dumps(
+            {"type": "result", "data": result},
+            ensure_ascii=False,
+            separators=(",", ":"),
+        )
+        + "\n"
+    ).encode("utf-8")
+
+    for index, file in enumerate(response.files):
+        content = file.content_base64
+        for offset in range(0, len(content), _STREAM_CHUNK_CHARACTERS):
+            yield (
+                json.dumps(
+                    {
+                        "type": "file_chunk",
+                        "index": index,
+                        "content_base64": content[
+                            offset : offset + _STREAM_CHUNK_CHARACTERS
+                        ],
+                    },
+                    separators=(",", ":"),
+                )
+                + "\n"
+            ).encode("utf-8")
+    yield b'{"type":"end"}\n'
+
+
+@app.post(
+    "/v1/exec-stream",
+    dependencies=[Depends(require_token)],
+)
+async def execute_stream(request: ExecRequest) -> StreamingResponse:
+    result = await runner.execute(
+        request,
+        max_file_output_bytes=settings.max_stream_file_output_bytes,
+    )
+    return StreamingResponse(
+        iter_exec_stream(result),
+        media_type="application/x-ndjson",
+        headers={
+            "Cache-Control": "no-store",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @app.delete(

@@ -154,6 +154,7 @@ class HealthResponse(BaseModel):
     max_output_bytes: int
     max_input_bytes: int
     max_file_output_bytes: int
+    max_stream_file_output_bytes: int
     max_output_files: int
 
 

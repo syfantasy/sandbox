@@ -64,15 +64,28 @@ class SandboxRunner:
     def session_path(self, session_id: str) -> Path:
         return self.settings.session_root / session_id
 
-    async def execute(self, request: ExecRequest) -> ExecResponse:
+    async def execute(
+        self,
+        request: ExecRequest,
+        *,
+        max_file_output_bytes: int | None = None,
+    ) -> ExecResponse:
         async with self._semaphore:
             self._active_jobs += 1
             try:
-                return await self._execute_locked(request)
+                return await self._execute_locked(
+                    request,
+                    max_file_output_bytes=max_file_output_bytes,
+                )
             finally:
                 self._active_jobs -= 1
 
-    async def _execute_locked(self, request: ExecRequest) -> ExecResponse:
+    async def _execute_locked(
+        self,
+        request: ExecRequest,
+        *,
+        max_file_output_bytes: int | None = None,
+    ) -> ExecResponse:
         started = time.monotonic()
         job_id = uuid.uuid4().hex
         session_id = request.session_id or uuid.uuid4().hex
@@ -230,7 +243,11 @@ class SandboxRunner:
         elif result.output_truncated:
             status = "output_limit_exceeded"
 
-        files, files_truncated = self._collect_output_files(session_dir, request)
+        files, files_truncated = self._collect_output_files(
+            session_dir,
+            request,
+            max_file_output_bytes=max_file_output_bytes,
+        )
 
         return ExecResponse(
             job_id=job_id,
@@ -385,7 +402,11 @@ class SandboxRunner:
         return None
 
     def _collect_output_files(
-        self, session_dir: Path, request: ExecRequest
+        self,
+        session_dir: Path,
+        request: ExecRequest,
+        *,
+        max_file_output_bytes: int | None = None,
     ) -> tuple[list[OutputFile], bool]:
         if not request.output_files:
             return [], False
@@ -406,12 +427,17 @@ class SandboxRunner:
         results: list[OutputFile] = []
         total_bytes = 0
         truncated = False
+        output_limit = (
+            self.settings.max_file_output_bytes
+            if max_file_output_bytes is None
+            else max_file_output_bytes
+        )
         for relative, path in sorted(candidates.items()):
             if len(results) >= self.settings.max_output_files:
                 truncated = True
                 break
             size = path.stat().st_size
-            if total_bytes + size > self.settings.max_file_output_bytes:
+            if total_bytes + size > output_limit:
                 truncated = True
                 continue
             content = path.read_bytes()
