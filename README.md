@@ -202,17 +202,32 @@ URL 输入不会占用请求体的大量空间：
 
 ## 网页截图
 
-镜像内置 Chromium、Puppeteer Extra 和常用字体。配套
-`chaite工具/PrivateSandbox.js` 可通过 `screenshot_url` 直接在容器中执行截图，
-不再在机器人本机启动 Puppeteer。默认使用当前会话下的 `.browser-profile`，因此
-同一热实例、同一 `session_id` 可以复用 cookies 和站点状态。
+镜像内置 Chromium、Puppeteer Extra、常用字体和网页截图脚本。通过通用执行
+接口运行：
+
+```bash
+node /app/tools/web_capture.mjs 'https://example.com' \
+  --output outputs/page.png --full-page --wait-ms 2000
+```
+
+默认使用当前会话下的 `.browser-profile`，因此同一热实例、同一 `session_id`
+可以复用 cookies 和站点状态。也可以通过 `--cookies inputs/cookies.json` 导入
+已获授权的 Puppeteer Cookie 数组。
 
 Cloudflare 等验证依赖网站策略、出口 IP 和浏览器环境，服务端无可靠且合规的
 通用绕过方式。推荐让用户在正常浏览器中完成验证后导出获授权的 cookies，或
 改用站点官方 API；不要依赖修改指纹或自动解验证码。
 
-图片和 GIF 可直接使用预装的 FFmpeg、ImageMagick 或 Pillow 处理。GIF 翻转、
-倒放时应先 coalesce 为完整帧，再重新编码并设置 disposal，避免差分帧残影。
+图片和 GIF 可使用预装的 FFmpeg、ImageMagick、Pillow 或内置脚本处理：
+
+```bash
+python /app/tools/media_edit.py flip-horizontal inputs/source.gif outputs/result.gif
+python /app/tools/media_edit.py flip-vertical inputs/source.png outputs/result.png
+python /app/tools/media_edit.py reverse inputs/source.gif outputs/reversed.gif
+```
+
+脚本处理 GIF 时会先读取合成后的完整帧，再重新编码并设置 disposal，避免差分帧
+翻转或倒放后出现残影。
 
 ## 本地运行与测试
 

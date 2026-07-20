@@ -63,6 +63,7 @@ RUN useradd --create-home --uid 1000 --shell /bin/bash sandbox \
         /app /tmp/sandbox-sessions /tmp/sandbox-cache /home/sandbox
 
 COPY --chown=sandbox:sandbox app /app/app
+COPY --chown=sandbox:sandbox tools /app/tools
 USER sandbox
 WORKDIR /app
 
