@@ -196,8 +196,23 @@ URL 输入不会占用请求体的大量空间：
 - curl、wget、git、jq、OpenSSL、DNS 工具
 - GCC/G++、make、pkg-config
 - FFmpeg、ImageMagick
+- Chromium、Puppeteer Core、中日韩字体和彩色 Emoji 字体
 - Pillow、OpenCV Headless、scikit-image、imageio、matplotlib
 - NumPy、Pandas、httpx、requests、aiohttp
+
+## 网页截图
+
+镜像内置 Chromium、Puppeteer Extra 和常用字体。配套
+`chaite工具/PrivateSandbox.js` 可通过 `screenshot_url` 直接在容器中执行截图，
+不再在机器人本机启动 Puppeteer。默认使用当前会话下的 `.browser-profile`，因此
+同一热实例、同一 `session_id` 可以复用 cookies 和站点状态。
+
+Cloudflare 等验证依赖网站策略、出口 IP 和浏览器环境，服务端无可靠且合规的
+通用绕过方式。推荐让用户在正常浏览器中完成验证后导出获授权的 cookies，或
+改用站点官方 API；不要依赖修改指纹或自动解验证码。
+
+图片和 GIF 可直接使用预装的 FFmpeg、ImageMagick 或 Pillow 处理。GIF 翻转、
+倒放时应先 coalesce 为完整帧，再重新编码并设置 disposal，避免差分帧残影。
 
 ## 本地运行与测试
 

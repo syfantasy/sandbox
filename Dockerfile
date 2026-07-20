@@ -9,12 +9,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     bash \
     build-essential \
     ca-certificates \
+    chromium \
     curl \
     dnsutils \
     file \
     ffmpeg \
     git \
     imagemagick \
+    fonts-noto-cjk \
+    fonts-noto-color-emoji \
     iputils-ping \
     jq \
     make \
@@ -36,6 +39,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 RUN pip install --no-cache-dir uv
 
+RUN npm install --prefix /app --no-audit --no-fund \
+    puppeteer-core@24 \
+    puppeteer-extra@3 \
+    puppeteer-extra-plugin-stealth@2
+
 COPY requirements.txt /tmp/requirements.txt
 RUN uv pip install --system -r /tmp/requirements.txt \
     && rm -rf /root/.cache/uv
@@ -46,7 +54,6 @@ RUN useradd --create-home --uid 1000 --shell /bin/bash sandbox \
         /app /tmp/sandbox-sessions /tmp/sandbox-cache /home/sandbox
 
 COPY --chown=sandbox:sandbox app /app/app
-
 USER sandbox
 WORKDIR /app
 
