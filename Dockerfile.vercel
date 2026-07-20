@@ -18,15 +18,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     bash \
     build-essential \
     ca-certificates \
-    chromium \
     curl \
     dnsutils \
     file \
     ffmpeg \
     git \
     imagemagick \
-    fonts-noto-cjk \
-    fonts-noto-color-emoji \
     iputils-ping \
     jq \
     make \
@@ -45,6 +42,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     xz-utils \
     zip \
     && rm -rf /var/lib/apt/lists/*
+
+# Keep browser and font payloads out of the already-large base tools layer.
+# Vercel uploads each OCI layer separately and rejects oversized blobs.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    chromium \
+    && rm -rf /var/lib/apt/lists/* /var/cache/apt/*
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    fonts-wqy-zenhei \
+    fonts-noto-color-emoji \
+    && fc-cache -f \
+    && rm -rf /var/lib/apt/lists/* /var/cache/apt/* /root/.cache/fontconfig
 
 RUN pip install --no-cache-dir uv
 

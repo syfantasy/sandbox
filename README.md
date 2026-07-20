@@ -196,7 +196,7 @@ URL 输入不会占用请求体的大量空间：
 - curl、wget、git、jq、OpenSSL、DNS 工具
 - GCC/G++、make、pkg-config
 - FFmpeg、ImageMagick
-- Chromium、Puppeteer Core、中日韩字体和彩色 Emoji 字体
+- Chromium、Puppeteer Core、轻量中文字体和彩色 Emoji 字体
 - Pillow、OpenCV Headless、scikit-image、imageio、matplotlib
 - NumPy、Pandas、httpx、requests、aiohttp
 
